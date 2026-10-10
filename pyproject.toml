@@ -1,0 +1,34 @@
+[project]
+name = "rawtag"
+version = "0.1.0"
+description = "Cross-platform editor for every raw tag in audio files"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mutagen>=1.47",
+    "PySide6-Essentials>=6.7",
+]
+
+[project.scripts]
+rawtag = "rawtag.app:main"
+rawtag-cli = "rawtag.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-qt>=4.4",
+    "pyinstaller>=6.10",
+    "pillow>=10",  # lets PyInstaller turn icon.png into .ico/.icns
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rawtag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+qt_api = "pyside6"
