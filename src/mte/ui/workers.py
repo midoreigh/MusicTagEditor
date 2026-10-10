@@ -58,14 +58,16 @@ class SaveSignals(QObject):
 
 
 class SaveWorker(QRunnable):
-    def __init__(self, plan) -> None:
+    def __init__(self, plan, naming=None) -> None:
         super().__init__()
         self.plan = plan
+        self.naming = naming
         self.signals = SaveSignals()
 
     def run(self) -> None:
         try:
-            result = save_all(self.plan, progress=self.signals.progress.emit)
+            result = save_all(self.plan, progress=self.signals.progress.emit,
+                              naming=self.naming)
         except Exception as e:  # pragma: no cover - save_all already catches per file
             result = BatchResult(errors={"<batch>": str(e)})
         self.signals.finished.emit(result)

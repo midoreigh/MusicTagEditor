@@ -197,6 +197,25 @@ def details(entry: TagEntry) -> str:
     return ", ".join(parts)
 
 
+_EMPTY = {
+    FieldType.TEXT: "", FieldType.MULTILINE: "", FieldType.TEXT_LIST: [], FieldType.INT: 0,
+    FieldType.INT_LIST: [], FieldType.PAIR_LIST: [], FieldType.PEOPLE: [],
+    FieldType.BOOL: False, FieldType.BYTES: b"", FieldType.PICTURES: [],
+}
+
+
+def blank_content(entry: TagEntry) -> TagEntry:
+    """Copy of ``entry`` with its content emptied but its identity kept
+    (key, encoding, language, description...). Used as the starting point
+    when a file doesn't have a tag yet."""
+    e = entry.clone()
+    for f in e.fields:
+        if f.name in META_FIELDS | KEY_FIELDS or f.readonly or f.ftype not in _EMPTY:
+            continue
+        f.value = copy.deepcopy(_EMPTY[f.ftype])
+    return e
+
+
 @dataclass
 class SetEntry:
     """Replace the entry stored under ``old_key`` (if any) with ``entry``."""

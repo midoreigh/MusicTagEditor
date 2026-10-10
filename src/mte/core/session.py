@@ -120,6 +120,12 @@ class Session:
         """After a successful save: reloaded tags become the new baseline."""
         self.add(ft)
 
+    def rename_path(self, old: str, ft: FileTags) -> None:
+        """A file was saved and moved: re-key it in place with its new tags."""
+        items = [(ft.path, FileState(ft, [e.clone() for e in ft.entries])) if p == old
+                 else (p, st) for p, st in self.files.items()]
+        self.files = OrderedDict(items)
+
     def remove(self, paths) -> None:
         for p in paths:
             self.files.pop(p, None)

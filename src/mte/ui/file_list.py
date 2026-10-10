@@ -28,6 +28,12 @@ class FileListModel(QAbstractTableModel):
         self.paths.extend(new)
         self.endInsertRows()
 
+    def replace_path(self, old: str, new: str) -> None:
+        if old in self.paths:
+            r = self.paths.index(old)
+            self.paths[r] = new
+            self.dataChanged.emit(self.index(r, 0), self.index(r, len(COLUMNS) - 1))
+
     def remove_paths(self, paths) -> None:
         gone = set(paths)
         self.beginResetModel()

@@ -14,14 +14,16 @@ from PySide6.QtWidgets import (
 
 from .. import __version__
 from ..core.formats.base import TagError
-from ..core.model import Field, FieldType, SetEntry, format_value
+from ..core.model import Field, FieldType, SetEntry, blank_content, format_value
+from ..core.naming import preview as naming_preview
 from ..core.scanner import DEFAULT_EXTENSIONS
 from ..core.session import MergedRow, Session
 from .add_tag import AddTagDialog
-from .editors.entry_dialog import EntryDialog
+from .editors.entry_dialog import EntryDialog, FileNav
 from .editors.fields import image_pixmap
 from .file_list import FileFilterProxy, FileListModel, FileListView
 from .find_remove import FindRemoveDialog
+from .naming_dialog import NamingDialog, load_naming, save_naming
 from .tag_table import TagFilterProxy, TagTableModel, TagTableView, content_field, display_key
 from .workers import LoadWorker, SaveWorker
 
@@ -57,6 +59,7 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("Music Tag Editor", "Music Tag Editor")
         self._loader: LoadWorker | None = None
         self.confirm_on_close = True  # tests turn this off
+        self.naming = load_naming(self.settings)
 
         # --- file list -------------------------------------------------------
         self.file_model = FileListModel(self.session, self)
@@ -115,6 +118,9 @@ class MainWindow(QMainWindow):
         self.progress.setMaximumWidth(200)
         self.progress.setVisible(False)
         self.statusBar().addPermanentWidget(self.progress)
+        self.naming_label = QLabel()
+        self.naming_label.setStyleSheet("color: palette(highlight); padding: 0 6px;")
+        self.statusBar().addPermanentWidget(self.naming_label)
 
         self._build_actions()
         self.file_view.selectionModel().selectionChanged.connect(self._files_selected)
@@ -162,6 +168,12 @@ class MainWindow(QMainWindow):
                           "Remove tags whose key/value contains some text")
         self.a_select_all = act("Select All Files", self.file_view.selectAll, "Ctrl+Shift+A")
         self.a_about = act("About Music Tag Editor", self.about)
+        self.a_naming = act("File Naming…", self.edit_naming, "Ctrl+Shift+N")
+        self.a_naming.setMenuRole(QAction.MenuRole.NoRole)  # keep it in Options on macOS
+        self.a_rename_toggle = act("Rename Files When Saving", self._toggle_rename)
+        self.a_rename_toggle.setCheckable(True)
+        self.a_move_toggle = act("Move Files When Saving", self._toggle_move)
+        self.a_move_toggle.setCheckable(True)
 
         m = self.menuBar().addMenu("&File")
         for a in (self.a_open, self.a_add_files, None, self.a_save, self.a_revert, self.a_reload,
@@ -171,7 +183,11 @@ class MainWindow(QMainWindow):
         for a in (self.a_add_tag, self.a_edit_tag, self.a_del_tag, None, self.a_find, None,
                   self.a_select_all):
             m.addSeparator() if a is None else m.addAction(a)
+        m = self.menuBar().addMenu("&Options")
+        for a in (self.a_rename_toggle, self.a_move_toggle, None, self.a_naming):
+            m.addSeparator() if a is None else m.addAction(a)
         self.menuBar().addMenu("&Help").addAction(self.a_about)
+        self._sync_naming_actions()
 
         tb = QToolBar("Main")
         tb.setObjectName("main_toolbar")
@@ -223,10 +239,17 @@ class MainWindow(QMainWindow):
                 parts.append(f"{info['channels']} ch")
             if info.get("id3"):
                 parts.append(info["id3"])
+            rename_note = ""
+            if self.naming.active:
+                target = naming_preview(st.original, self.naming, st.working)
+                if target.startswith("⚠"):
+                    rename_note = f"<br><span style='color:#c0392b'>Naming: {html.escape(target)}</span>"
+                elif os.path.abspath(target) != os.path.abspath(paths[0]):
+                    rename_note = ("<br>On save → <code>" + html.escape(target) + "</code>")
             self.info_label.setText(
                 f"<b>{html.escape(os.path.basename(paths[0]))}</b> — "
                 + html.escape(" · ".join(str(p) for p in parts if p))
-                + f" — tag systems: {', '.join(st.original.systems)}")
+                + f" — tag systems: {', '.join(st.original.systems)}" + rename_note)
         else:
             self.info_label.setText(f"<b>{len(paths)} files selected</b> — tags present in only "
                                     "some files show [in n/m files]; edits apply to all selected.")
@@ -396,9 +419,104 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Some files skipped",
                                     f"{len(errors)} file(s) were not changed:\n\n{names}")
 
+    def _proxy_pos(self, row: MergedRow) -> int:
+        """Position of a tag row in the table as currently sorted/filtered."""
+        for r in range(self.tag_proxy.rowCount()):
+            src = self.tag_model.rows[self.tag_proxy.mapToSource(self.tag_proxy.index(r, 0)).row()]
+            if (src.system, src.key) == (row.system, row.key):
+                return r
+        return -1
+
+    def _select_tag_at(self, pos: int) -> MergedRow | None:
+        if not 0 <= pos < self.tag_proxy.rowCount():
+            return None
+        idx = self.tag_proxy.index(pos, 0)
+        self.tag_view.setCurrentIndex(idx)
+        self.tag_view.selectRow(pos)
+        self.tag_view.scrollTo(idx)
+        return self.tag_view.source_row(idx)
+
     def edit_row(self, row: MergedRow | None) -> None:
-        if row is None:
-            return
+        """Open the editor. Previous/Next walk the table's rows; Previous/Next
+        file keep the same tag and move through the file list."""
+        geometry = None
+        missing = False
+        while row is not None:
+            pos = -1 if missing else self._proxy_pos(row)
+            dlg = self._entry_dialog(row, pos, missing)
+            if geometry is not None:
+                dlg.restoreGeometry(geometry)  # keep the dialog where the user put it
+            accepted = dlg.exec()
+            geometry = dlg.saveGeometry()
+            if not accepted:
+                return
+            self._apply_dialog_changes(row, dlg.changes())
+            if dlg.nav:
+                row, missing = self._select_tag_at(pos + dlg.nav), False
+            elif dlg.file_nav_step:
+                row, missing = self._goto_file(row, dlg.file_nav_step)
+            else:
+                return
+
+    # -- file navigation (same tag, neighbouring file) --------------------
+    def _file_proxy_paths(self) -> list[str]:
+        m = self.file_proxy
+        return [m.index(r, 0).data(Qt.ItemDataRole.UserRole) for r in range(m.rowCount())]
+
+    def _anchor_path(self, row: MergedRow) -> str:
+        """The file the dialog is "on": the file list's current file if it's
+        part of the row, else the row's first file."""
+        cur = self.file_view.currentIndex()
+        path = cur.data(Qt.ItemDataRole.UserRole) if cur.isValid() else None
+        return path if path in row.entries else next(iter(row.entries))
+
+    def _find_file(self, system: str, paths: list[str], start: int, step: int) -> str | None:
+        i = start + step
+        while 0 <= i < len(paths):
+            st = self.session.files.get(paths[i])
+            if st is not None and not st.original.error and system in st.original.systems:
+                return paths[i]
+            i += step
+        return None
+
+    def _file_nav(self, row: MergedRow) -> FileNav:
+        paths = self._file_proxy_paths()
+        anchor = self._anchor_path(row)
+        pos = paths.index(anchor) if anchor in paths else -1
+        label = os.path.basename(anchor) if len(row.entries) == 1 \
+            else f"{len(row.entries)} selected files"
+        return FileNav(
+            has_prev=pos >= 0 and self._find_file(row.system, paths, pos, -1) is not None,
+            has_next=pos >= 0 and self._find_file(row.system, paths, pos, 1) is not None,
+            label=label,
+            position=f"{pos + 1} of {len(paths)}" if pos >= 0 else "",
+        )
+
+    def _select_file(self, path: str) -> None:
+        paths = self._file_proxy_paths()
+        idx = self.file_proxy.index(paths.index(path), 0)
+        sm = self.file_view.selectionModel()
+        sm.setCurrentIndex(idx, sm.SelectionFlag.ClearAndSelect | sm.SelectionFlag.Rows)
+        self.file_view.scrollTo(idx)
+
+    def _goto_file(self, row: MergedRow, step: int) -> tuple[MergedRow | None, bool]:
+        paths = self._file_proxy_paths()
+        anchor = self._anchor_path(row)
+        if anchor not in paths:
+            return None, False
+        target = self._find_file(row.system, paths, paths.index(anchor), step)
+        if target is None:
+            return None, False
+        template = row.entries.get(anchor, row.first)
+        self._select_file(target)  # also refreshes the tag table
+        for r in self.tag_model.rows:
+            if (r.system, r.key) == (row.system, row.key):
+                self._select_tag_at(self._proxy_pos(r))
+                return r, False
+        self.tag_view.clearSelection()
+        return MergedRow(row.system, row.key, {target: blank_content(template)}, 1), True
+
+    def _entry_dialog(self, row: MergedRow, pos: int, missing: bool = False) -> EntryDialog:
         first = row.first
         differing = set()
         for f in first.fields:
@@ -407,10 +525,12 @@ class MainWindow(QMainWindow):
                 if other is None or other.value != f.value:
                     differing.add(f.name)
                     break
-        dlg = EntryDialog(first, file_count=len(row.entries), differing=differing, parent=self)
-        if not dlg.exec():
-            return
-        changes = dlg.changes()
+        position = (pos, self.tag_proxy.rowCount()) if pos >= 0 else None
+        return EntryDialog(first, file_count=len(row.entries), differing=differing,
+                           position=position, file_nav=self._file_nav(row), missing=missing,
+                           parent=self)
+
+    def _apply_dialog_changes(self, row: MergedRow, changes: dict) -> None:
         if not changes:
             return
         errors = {}
@@ -499,7 +619,7 @@ class MainWindow(QMainWindow):
         self._save_dialog = QProgressDialog("Saving…", None, 0, len(plan), self)
         self._save_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         self._save_dialog.setMinimumDuration(300)
-        worker = SaveWorker(plan)
+        worker = SaveWorker(plan, self.naming)
         worker.signals.progress.connect(self._on_save_progress)
         worker.signals.finished.connect(self._on_saved)
         self.a_save.setEnabled(False)
@@ -514,16 +634,62 @@ class MainWindow(QMainWindow):
     def _on_saved(self, result) -> None:
         self._save_dialog.close()
         for path, ft in result.saved.items():
-            self.session.replace_original(ft)
+            if ft.path != path:
+                self.session.rename_path(path, ft)
+                self.file_model.replace_path(path, ft.path)
+            else:
+                self.session.replace_original(ft)
         self.file_model.refresh()
         self._files_selected()
         msg = f"Saved {len(result.saved)} file(s)"
+        if result.renamed:
+            msg += f", renamed/moved {len(result.renamed)}"
+        if result.rename_errors:
+            details_ = "\n".join(f"• {p}: {e}" for p, e in result.rename_errors.items())
+            QMessageBox.warning(self, "Some files could not be renamed",
+                                f"Tags were saved, but {len(result.rename_errors)} file(s) kept "
+                                f"their old name:\n\n{details_}")
         if result.errors:
             details_ = "\n".join(f"• {p}: {e}" for p, e in result.errors.items())
             QMessageBox.warning(self, "Some files could not be saved",
                                 f"{msg}; {len(result.errors)} failed (their changes are kept "
                                 f"pending):\n\n{details_}")
         self.statusBar().showMessage(msg, 8000)
+
+    # ---------------------------------------------------------------- naming
+    def _sync_naming_actions(self) -> None:
+        self.a_rename_toggle.setChecked(self.naming.rename)
+        self.a_move_toggle.setChecked(self.naming.move)
+        on = [n for n, v in (("rename", self.naming.rename), ("move", self.naming.move)) if v]
+        self.naming_label.setText(f"On save: {' + '.join(on)}" if on else "")
+
+    def _set_naming(self, opts) -> None:
+        self.naming = opts
+        save_naming(self.settings, opts)
+        self._sync_naming_actions()
+        self._update_info([p for p in self.selected_paths() if p in self.session])
+
+    def _toggle_rename(self, checked: bool) -> None:
+        from dataclasses import replace
+        self._set_naming(replace(self.naming, rename=checked))
+
+    def _toggle_move(self, checked: bool) -> None:
+        from dataclasses import replace
+        if checked and not self.naming.dest_dir:
+            self.a_move_toggle.setChecked(False)
+            self.edit_naming()  # needs a destination first
+            return
+        self._set_naming(replace(self.naming, move=checked))
+
+    def edit_naming(self) -> None:
+        paths = self.selected_paths() or list(self.file_model.paths)
+        examples = [(self.session.files[p].original, self.session.files[p].working)
+                    for p in paths if p in self.session and not self.session.files[p].original.error]
+        dlg = NamingDialog(self.naming, examples, self)
+        if dlg.exec():
+            self._set_naming(dlg.options())
+        else:
+            self._sync_naming_actions()
 
     # ------------------------------------------------------------------ misc
     def about(self) -> None:
@@ -553,7 +719,7 @@ class MainWindow(QMainWindow):
                 return
             if r == QMessageBox.StandardButton.Save:
                 from ..core.batch import save_all
-                result = save_all(self.session.save_plan())
+                result = save_all(self.session.save_plan(), naming=self.naming)
                 if result.errors:
                     QMessageBox.warning(self, "Save failed",
                                         "\n".join(f"{p}: {e}" for p, e in result.errors.items()))
