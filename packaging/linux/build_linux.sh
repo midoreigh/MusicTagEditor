@@ -48,7 +48,8 @@ cp "$HERE/mte.desktop" "$PKG/usr/share/applications/"
 cp "$APPDIR/mte.png" "$PKG/usr/share/icons/hicolor/512x512/apps/mte.png"
 # Only libraries PyInstaller does *not* bundle belong here (all present on any
 # desktop install): GL/EGL, the base X11 (xcb) and Wayland client libraries,
-# and libdrm. Qt's xcb-cursor/xkbcommon/fontconfig/dbus libraries ship inside
+# and libdrm, plus fontconfig-config (the /etc/fonts configuration the bundled
+# libfontconfig reads). Qt's xcb-cursor/xkbcommon/fontconfig/dbus libraries ship inside
 # the package; listing them made `dpkg -i` fail where they weren't installed.
 # The Release workflow installs exactly these into a clean Ubuntu container
 # and checks every bundled library resolves.
@@ -58,7 +59,7 @@ Version: ${VERSION}
 Section: sound
 Priority: optional
 Architecture: ${DEB_ARCH}
-Depends: libegl1, libgl1, libxcb1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libdrm2
+Depends: libegl1, libgl1, libxcb1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libdrm2, fontconfig-config
 Maintainer: Mido Reigh <midoreigh@gmail.com>
 Description: View and edit every raw tag in audio files
  Shows all ID3v2/ID3v1 frames, MP4 atoms, Vorbis comments, FLAC pictures,

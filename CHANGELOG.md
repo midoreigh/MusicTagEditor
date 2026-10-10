@@ -12,7 +12,8 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The Linux `.deb` now installs with plain `sudo dpkg -i`. It used to list libraries
   that are already bundled inside it (such as `libxcb-cursor0`) as dependencies, so
   `dpkg -i` failed on systems without them. It now declares only the system
-  libraries it really needs, which every desktop Ubuntu/Debian already has.
+  libraries (and font configuration) it really needs, which every desktop
+  Ubuntu/Debian already has.
 - Every release build now installs the `.deb` on a clean Ubuntu 22.04 to check this.
 
 ## [0.1.0] - 2026-10-10
