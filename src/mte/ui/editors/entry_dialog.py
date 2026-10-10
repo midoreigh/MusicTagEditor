@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QVBoxLayout, QWidget,
 )
 
-from ...core.formats import key_for
+from ...core.formats import validate_entry
 from ...core.formats.base import TagError, sniff_mime
 from ...core.model import TagEntry
 from .fields import BytesWidget, FieldWidget, widget_for
@@ -53,6 +53,7 @@ class EntryDialog(QDialog):
         head.setWordWrap(True)
         outer.addWidget(head)
         self.key_label = QLabel()
+        self.key_label.setWordWrap(True)  # validation messages can be long
         outer.addWidget(self.key_label)
         if file_nav is not None and file_nav.label:
             fl = QLabel(f"File: <b>{html.escape(file_nav.label)}</b>")
@@ -173,12 +174,13 @@ class EntryDialog(QDialog):
         return e
 
     def _update_key(self) -> None:
+        # full validation (same rules as saving) so problems show while typing
         try:
-            key = key_for(self._collect())
+            key = validate_entry(self._collect())
             from ..tag_table import display_key
             self.key_label.setText(f"Key: <code>{html.escape(display_key(key))}</code>")
         except (TagError, ValueError, TypeError) as e:
-            self.key_label.setText(f"<span style='color:#c00'>Key: {html.escape(str(e))}</span>")
+            self.key_label.setText(f"<span style='color:#c00'>⚠ {html.escape(str(e))}</span>")
 
     def _navigate(self, step: int, files: bool = False) -> None:
         """Keep the current edits (if valid) and ask the caller to move on."""
@@ -201,7 +203,7 @@ class EntryDialog(QDialog):
     def _accept(self) -> None:
         try:
             e = self._collect()
-            key_for(e)  # validates (e.g. builds the ID3 frame)
+            validate_entry(e)  # same rules as saving (ID3 frame, ID3v1 sizes, …)
         except (TagError, ValueError, TypeError) as ex:
             QMessageBox.warning(self, "Invalid value", str(ex))
             return

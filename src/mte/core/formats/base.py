@@ -52,6 +52,12 @@ class Adapter:
         """Native key an entry will be stored under (may depend on its fields)."""
         return entry.key
 
+    @classmethod
+    def validate(cls, entry: TagEntry) -> str:
+        """Check an entry can be written (same rules as ``set``) without
+        touching any file; returns its key. Raises TagError."""
+        return cls.key_of(entry)
+
     def templates(self) -> list[TagEntry]:
         """Blank entries offered by the "Add tag" dialog."""
         return []

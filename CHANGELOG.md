@@ -9,6 +9,12 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.1.1] - 2026-10-10
 
 ### Fixed
+- An edit that can't be written (for example an ID3v1 album longer than 30 bytes)
+  is now rejected as soon as you make it, with an explanation. It used to be
+  accepted and then fail on every Save, even after the tag was deleted or edited
+  back.
+- Save now writes only the difference between the file and your edits, not every
+  intermediate edit you made. Deleting or reverting a change really undoes it.
 - The Linux `.deb` now installs with plain `sudo dpkg -i`. It used to list libraries
   that are already bundled inside it (such as `libxcb-cursor0`) as dependencies, so
   `dpkg -i` failed on systems without them. It now declares only the system

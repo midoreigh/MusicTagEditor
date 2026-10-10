@@ -1,9 +1,12 @@
 """In-memory editing session: loaded files, pending edits, merged views.
 
 Nothing touches disk until :func:`Session.save_plan` is executed through
-:func:`mte.core.batch.save_all`. Each file keeps its original tags, a working
-copy that reflects pending edits, and the op log that will be replayed on a
-freshly opened file at save time.
+:func:`mte.core.batch.save_all`. Each file keeps its original tags and a
+working copy reflecting pending edits. What gets saved is the *difference*
+between the two, not the history of edits: an edit that was later deleted,
+overwritten or reverted leaves nothing behind. Every edit is validated when
+it's made, so a value that can't be written is rejected immediately instead
+of failing at save time.
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ import os
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
-from .formats import key_for
+from .formats import validate_entry
 from .formats.base import TagError
 from .model import DeleteEntry, EditOp, FileTags, SetEntry, TagEntry
 
@@ -23,11 +26,18 @@ GroupKey = tuple[str, str]  # (system, key)
 class FileState:
     original: FileTags
     working: list[TagEntry]
-    ops: list[EditOp] = field(default_factory=list)
+    _ops: list[EditOp] | None = field(default=None, repr=False)  # cached diff
 
     @property
     def path(self) -> str:
         return self.original.path
+
+    @property
+    def ops(self) -> list[EditOp]:
+        """Edits that turn the original tags into the working ones."""
+        if self._ops is None:
+            self._ops = diff_ops(self.original.entries, self.working)
+        return self._ops
 
     @property
     def dirty(self) -> bool:
@@ -46,18 +56,21 @@ class FileState:
         return None
 
     def apply(self, op: EditOp) -> None:
+        """Apply an edit to the working copy. Raises TagError (leaving the
+        working copy untouched) if the result couldn't be written."""
         if isinstance(op, DeleteEntry):
-            idx = [i for i, e in enumerate(self.working)
-                   if e.system == op.system and e.key == op.key]
-            if not idx:
-                return
-            for i in reversed(idx):
-                del self.working[i]
+            self.working = [e for e in self.working
+                            if not (e.system == op.system and e.key == op.key)]
         else:
             if op.system not in self.original.systems:
                 raise TagError(f"{os.path.basename(self.path)} can't hold {op.system} tags")
             new = op.entry.clone()
-            new.key = key_for(new)
+            new.key = validate_entry(new)
+            if new.key.endswith("#new"):  # each added picture block needs its own key
+                n = 1
+                while self.find(new.system, f"{new.key}{n}") is not None:
+                    n += 1
+                new.key = f"{new.key}{n}"
             pos = None
             for i, e in enumerate(self.working):
                 if e.system == new.system and e.key in (op.old_key, new.key):
@@ -68,12 +81,11 @@ class FileState:
                 self.working.append(new)
             else:
                 self.working.insert(min(pos, len(self.working)), new)
-            op = SetEntry(new, op.old_key)
-        self.ops.append(op)
+        self._ops = None
 
     def revert(self) -> None:
         self.working = [e.clone() for e in self.original.entries]
-        self.ops.clear()
+        self._ops = None
 
     def entry_state(self, entry: TagEntry) -> str:
         """'' (unchanged), 'new' or 'modified'."""
@@ -83,6 +95,21 @@ class FileState:
         if orig.fields != entry.fields:
             return "modified"
         return ""
+
+
+def diff_ops(original: list[TagEntry], working: list[TagEntry]) -> list[EditOp]:
+    """Deletions for entries that are gone, then a set for every entry that is
+    new or changed. Keys are compared per tag system."""
+    orig = {(e.system, e.key): e for e in original}
+    work = {(e.system, e.key): e for e in working}
+    ops: list[EditOp] = [DeleteEntry(s, k) for (s, k) in orig if (s, k) not in work]
+    for (s, k), e in work.items():
+        before = orig.get((s, k))
+        if before is None:
+            ops.append(SetEntry(e.clone(), None))
+        elif before.fields != e.fields:
+            ops.append(SetEntry(e.clone(), k))
+    return ops
 
 
 @dataclass
