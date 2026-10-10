@@ -15,15 +15,17 @@ from PySide6.QtWidgets import (
 from .. import __version__
 from ..core.formats.base import TagError
 from ..core.model import Field, FieldType, SetEntry, blank_content, format_value
+from ..core.folders import ancestor_choices, remap_path, rename_folder
 from ..core.naming import preview as naming_preview
 from ..core.scanner import DEFAULT_EXTENSIONS
 from ..core.session import MergedRow, Session
 from .add_tag import AddTagDialog
 from .editors.entry_dialog import EntryDialog, FileNav
 from .editors.fields import image_pixmap
-from .file_list import FileFilterProxy, FileListModel, FileListView
+from .file_tree import FileTreeModel, FileTreeProxy, FileTreeView
 from .find_remove import FindRemoveDialog
 from .naming_dialog import NamingDialog, load_naming, save_naming
+from .rename_folder import RenameFolderDialog
 from .tag_table import TagFilterProxy, TagTableModel, TagTableView, content_field, display_key
 from .workers import LoadWorker, SaveWorker
 
@@ -62,13 +64,13 @@ class MainWindow(QMainWindow):
         self.naming = load_naming(self.settings)
 
         # --- file list -------------------------------------------------------
-        self.file_model = FileListModel(self.session, self)
-        self.file_proxy = FileFilterProxy(self)
+        self.file_model = FileTreeModel(self.session, self)
+        self.file_proxy = FileTreeProxy(self)
         self.file_proxy.setSourceModel(self.file_model)
-        self.file_view = FileListView()
+        self.file_view = FileTreeView()
         self.file_view.setModel(self.file_proxy)
         self.file_filter = QLineEdit()
-        self.file_filter.setPlaceholderText("Filter files…")
+        self.file_filter.setPlaceholderText("Filter files and folders…")
         self.file_filter.setClearButtonEnabled(True)
         self.file_filter.textChanged.connect(self.file_proxy.setFilterFixedString)
         left = QWidget()
@@ -129,6 +131,7 @@ class MainWindow(QMainWindow):
         self.tag_view.delete_pressed.connect(self.delete_tags)
         self.tag_model.inline_edited.connect(self._inline_edit)
         self.tag_model.modelReset.connect(self._tags_selected)
+        self._build_file_context_menu()
         self._update_actions()
         self._restore_state()
 
@@ -167,6 +170,9 @@ class MainWindow(QMainWindow):
                           sp.SP_FileDialogContentsView,
                           "Remove tags whose key/value contains some text")
         self.a_select_all = act("Select All Files", self.file_view.selectAll, "Ctrl+Shift+A")
+        self.a_rename_folder = act("Rename Folder…", self.rename_folder, "Ctrl+Shift+R",
+                                   sp.SP_DirIcon,
+                                   "Rename the folder of the selected file (or a parent folder)")
         self.a_about = act("About Music Tag Editor", self.about)
         self.a_naming = act("File Naming…", self.edit_naming, "Ctrl+Shift+N")
         self.a_naming.setMenuRole(QAction.MenuRole.NoRole)  # keep it in Options on macOS
@@ -177,7 +183,7 @@ class MainWindow(QMainWindow):
 
         m = self.menuBar().addMenu("&File")
         for a in (self.a_open, self.a_add_files, None, self.a_save, self.a_revert, self.a_reload,
-                  None, self.a_remove, self.a_clear, None, self.a_quit):
+                  None, self.a_rename_folder, None, self.a_remove, self.a_clear, None, self.a_quit):
             m.addSeparator() if a is None else m.addAction(a)
         m = self.menuBar().addMenu("&Edit")
         for a in (self.a_add_tag, self.a_edit_tag, self.a_del_tag, None, self.a_find, None,
@@ -197,6 +203,15 @@ class MainWindow(QMainWindow):
                   self.a_add_tag, self.a_edit_tag, self.a_del_tag, None, self.a_find):
             tb.addSeparator() if a is None else tb.addAction(a)
         self.addToolBar(tb)
+
+    def _build_file_context_menu(self) -> None:
+        self.file_view.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+        sep = QAction(self)
+        sep.setSeparator(True)
+        sep2 = QAction(self)
+        sep2.setSeparator(True)
+        for a in (self.a_rename_folder, sep, self.a_revert, self.a_reload, sep2, self.a_remove):
+            self.file_view.addAction(a)
 
     def _restore_state(self) -> None:
         geo = self.settings.value("geometry")
@@ -311,8 +326,12 @@ class MainWindow(QMainWindow):
         dirty = len(self.session.dirty_files())
         self.a_save.setEnabled(dirty > 0)
         self.a_find.setEnabled(bool(self.file_model.paths))
+        self.a_rename_folder.setEnabled(self.file_view.currentIndex().isValid()
+                                        and self._loader is None)
         self.setWindowModified(dirty > 0)
-        self.setWindowTitle(f"Music Tag Editor{' — ' + str(dirty) + ' unsaved file(s)' if dirty else ''}")
+        # "[*]": Qt shows the platform's unsaved marker (dot in the macOS close button)
+        self.setWindowTitle("Music Tag Editor[*]"
+                            + (f" — {dirty} unsaved file(s)" if dirty else ""))
 
     def _after_edit(self, paths=None) -> None:
         sel = self.tag_view.selected_rows()
@@ -345,6 +364,9 @@ class MainWindow(QMainWindow):
             self.load_paths(paths)
 
     def load_paths(self, paths: list[str]) -> None:
+        for p in paths:
+            p = os.path.abspath(p)
+            self.file_model.add_root(p if os.path.isdir(p) else os.path.dirname(p))
         worker = LoadWorker(paths, skip=set(self.session.files))
         worker.signals.loaded.connect(self._on_loaded)
         worker.signals.progress.connect(self._on_load_progress)
@@ -361,7 +383,9 @@ class MainWindow(QMainWindow):
             self.session.add(ft)
         self.file_model.add_paths([ft.path for ft in chunk])
         if first and self.file_model.paths:
-            self.file_view.selectRow(0)
+            leaves = self.file_view.leaf_paths()
+            if leaves:
+                self.file_view.select_path(leaves[0])
         self._update_actions()
 
     def _on_load_progress(self, done: int, total: int) -> None:
@@ -460,14 +484,12 @@ class MainWindow(QMainWindow):
 
     # -- file navigation (same tag, neighbouring file) --------------------
     def _file_proxy_paths(self) -> list[str]:
-        m = self.file_proxy
-        return [m.index(r, 0).data(Qt.ItemDataRole.UserRole) for r in range(m.rowCount())]
+        return self.file_view.leaf_paths()  # files in displayed (tree) order
 
     def _anchor_path(self, row: MergedRow) -> str:
         """The file the dialog is "on": the file list's current file if it's
         part of the row, else the row's first file."""
-        cur = self.file_view.currentIndex()
-        path = cur.data(Qt.ItemDataRole.UserRole) if cur.isValid() else None
+        path = self.file_view.current_path()
         return path if path in row.entries else next(iter(row.entries))
 
     def _find_file(self, system: str, paths: list[str], start: int, step: int) -> str | None:
@@ -493,11 +515,7 @@ class MainWindow(QMainWindow):
         )
 
     def _select_file(self, path: str) -> None:
-        paths = self._file_proxy_paths()
-        idx = self.file_proxy.index(paths.index(path), 0)
-        sm = self.file_view.selectionModel()
-        sm.setCurrentIndex(idx, sm.SelectionFlag.ClearAndSelect | sm.SelectionFlag.Rows)
-        self.file_view.scrollTo(idx)
+        self.file_view.select_path(path)
 
     def _goto_file(self, row: MergedRow, step: int) -> tuple[MergedRow | None, bool]:
         paths = self._file_proxy_paths()
@@ -636,9 +654,10 @@ class MainWindow(QMainWindow):
         for path, ft in result.saved.items():
             if ft.path != path:
                 self.session.rename_path(path, ft)
-                self.file_model.replace_path(path, ft.path)
             else:
                 self.session.replace_original(ft)
+        if result.renamed:
+            self.file_model.remap(result.renamed)  # files may now live in other folders
         self.file_model.refresh()
         self._files_selected()
         msg = f"Saved {len(result.saved)} file(s)"
@@ -655,6 +674,34 @@ class MainWindow(QMainWindow):
                                 f"{msg}; {len(result.errors)} failed (their changes are kept "
                                 f"pending):\n\n{details_}")
         self.statusBar().showMessage(msg, 8000)
+
+    # ---------------------------------------------------------- folder rename
+    def rename_folder(self) -> None:
+        path = self.file_view.current_path()
+        if not path or self._loader is not None:
+            return
+        if self.file_view.current_is_dir():
+            path = os.path.join(path, "_")  # rename this folder (or its parents)
+        loaded = list(self.file_model.paths)
+        dlg = RenameFolderDialog(ancestor_choices(path, loaded), loaded,
+                                 {s.path for s in self.session.dirty_files()}, self)
+        if not dlg.exec():
+            return
+        old_dir = dlg.selected_folder()
+        try:
+            new_dir = rename_folder(old_dir, dlg.new_name())
+        except (OSError, ValueError) as e:
+            QMessageBox.warning(self, "Couldn't rename folder", str(e))
+            return
+        moved = self.session.remap_folder(old_dir, new_dir)
+        self.file_model.remap(moved, old_dir, new_dir)
+        last = self.settings.value("last_dir", "")
+        if last:
+            self.settings.setValue("last_dir", remap_path(last, old_dir, new_dir))
+        self._files_selected()
+        self.statusBar().showMessage(
+            f"Renamed “{os.path.basename(old_dir)}” → “{os.path.basename(new_dir)}” "
+            f"({len(moved)} loaded file(s) updated)", 8000)
 
     # ---------------------------------------------------------------- naming
     def _sync_naming_actions(self) -> None:

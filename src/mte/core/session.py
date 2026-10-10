@@ -126,6 +126,21 @@ class Session:
                  else (p, st) for p, st in self.files.items()]
         self.files = OrderedDict(items)
 
+    def remap_folder(self, old_dir: str, new_dir: str) -> dict[str, str]:
+        """A folder was renamed on disk: move every file under it to its new
+        path, keeping pending edits. Returns {old path: new path}."""
+        from .folders import remap_path
+        moved: dict[str, str] = {}
+        items = []
+        for p, st in self.files.items():
+            new = remap_path(p, old_dir, new_dir)
+            if new != p:
+                st.original.path = new
+                moved[p] = new
+            items.append((new, st))
+        self.files = OrderedDict(items)
+        return moved
+
     def remove(self, paths) -> None:
         for p in paths:
             self.files.pop(p, None)

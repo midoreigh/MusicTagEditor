@@ -33,12 +33,8 @@ def window(qtbot, tmp_path):
 
 
 def _select_files(w, names):
-    w.file_view.clearSelection()
-    sm = w.file_view.selectionModel()
-    for r in range(w.file_proxy.rowCount()):
-        idx = w.file_proxy.index(r, 0)
-        if os.path.basename(idx.data(0x0100)) in names:
-            sm.select(idx, sm.SelectionFlag.Select | sm.SelectionFlag.Rows)
+    paths = [p for p in w.file_view.all_paths() if os.path.basename(p) in names]
+    w.file_view.select_paths(paths, current=paths[0] if paths else None)
 
 
 def _row(w, system, key):
@@ -264,3 +260,44 @@ def test_edit_row_previous_next_file_keeps_tag(qtbot, tmp_path, monkeypatch):
     assert files["2.mp3"].find("ID3v2", "TIT2").get("text") == ["Two"]
     assert files["4.mp3"].find("ID3v2", "TIT2").get("text") == ["Song"]  # only visited
     assert not files["4.mp3"].dirty
+
+
+def test_rename_folder_keeps_pending_edits(qtbot, tmp_path, monkeypatch):
+    import mte.ui.main_window as mw
+
+    album = tmp_path / "lib" / "Old Album"
+    album.mkdir(parents=True)
+    seed_podcast_mp3(make_mp3(album / "1.mp3"))
+    seed_podcast_mp3(make_mp3(tmp_path / "lib" / "outside.mp3"))
+    w = MainWindow()
+    w.confirm_on_close = False
+    w.naming = NamingOptions()
+    qtbot.addWidget(w)
+    w.show()
+    w.load_paths([str(tmp_path / "lib")])
+    qtbot.waitUntil(lambda: len(w.file_model.paths) == 2 and w._loader is None, timeout=5000)
+    _select_files(w, {"1.mp3"})
+    w._inline_edit(_row(w, "ID3v2", "TIT2"), "Pending title")
+    qtbot.wait(10)
+
+    class Scripted(mw.RenameFolderDialog):
+        def exec(self):
+            assert self.selected_folder() == str(album)
+            assert self.folder.count() == 2  # album folder + common "lib" root
+            self.name.setText("New Album")
+            assert self.ok.isEnabled()
+            return 1
+
+    monkeypatch.setattr(mw, "RenameFolderDialog", Scripted)
+    w.rename_folder()
+    new_path = str(tmp_path / "lib" / "New Album" / "1.mp3")
+    assert os.path.exists(new_path) and not album.exists()
+    assert new_path in w.file_model.paths and new_path in w.session.files
+    st = w.session.files[new_path]
+    assert st.dirty and st.find("ID3v2", "TIT2").get("text") == ["Pending title"]
+    assert str(tmp_path / "lib" / "outside.mp3") in w.session.files  # untouched
+
+    w.save()
+    qtbot.waitUntil(lambda: not w.session.dirty_files(), timeout=5000)
+    from mutagen.id3 import ID3
+    assert ID3(new_path)["TIT2"].text == ["Pending title"]
