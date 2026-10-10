@@ -77,6 +77,29 @@ jobs:
           dist/MusicTagEditor/mte --smoke-test
           packaging/linux/build_linux.sh "${{ steps.version.outputs.version }}"
 
+      - if: runner.os == 'Linux'
+        name: Install the .deb on a clean Ubuntu (declared Depends only)
+        run: |
+          deb=$(basename dist/mte_*.deb)
+          docker run --rm -v "$PWD/dist:/dist:ro" -e QT_QPA_PLATFORM=offscreen \
+            -e DEB="$deb" ubuntu:22.04 bash -euc '
+            apt-get update -qq
+            # install exactly what the package declares, nothing else
+            deps=$(dpkg-deb -f "/dist/$DEB" Depends | tr -d ",")
+            echo "Depends: $deps"
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $deps >/dev/null
+            dpkg -i "/dist/$DEB"
+            # every bundled library/plugin must resolve against bundled + declared libs
+            lib=/opt/mte/_internal
+            export LD_LIBRARY_PATH=$lib:$lib/PySide6/Qt/lib
+            missing=$(find /opt/mte -type f \( -name "*.so*" -o -name mte \) -exec ldd {} \; 2>/dev/null \
+                      | grep "not found" | sort -u || true)
+            [ -z "$missing" ] || { echo "::error::Libraries not bundled or declared:"; echo "$missing"; exit 1; }
+            unset LD_LIBRARY_PATH
+            mte --smoke-test
+            echo "OK: dpkg -i works with the declared dependencies"
+          '
+
       # ---------------- Windows: Inno Setup installer
       - if: runner.os == 'Windows'
         name: Smoke test + installer
