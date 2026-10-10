@@ -172,10 +172,19 @@ class MP4Adapter(Adapter):
             raise TagError(f"No atom {key!r}")
         del tags[key]
 
-    def set(self, entry: TagEntry) -> None:
-        key = self.key_of(entry)
+    @classmethod
+    def validate(cls, entry: TagEntry) -> str:
+        key = cls.key_of(entry)
         if entry.frame_id != "----" and len(key.encode("latin-1", "replace")) != 4:
             raise TagError(f"MP4 atom names are 4 characters, got {key!r}")
+        try:
+            value_for(entry)
+        except (TypeError, ValueError) as e:
+            raise TagError(f"{key}: {e}") from e
+        return key
+
+    def set(self, entry: TagEntry) -> None:
+        key = self.validate(entry)
         try:
             self.tags[key] = value_for(entry)
         except (TypeError, ValueError) as e:

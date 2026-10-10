@@ -360,19 +360,34 @@ class ID3v1Adapter(Adapter):
             raise TagError("File has no ID3v1 tag")
         self.values[key] = self._blank()[key]
 
-    def set(self, entry: TagEntry) -> None:
+    @staticmethod
+    def validate(entry: TagEntry) -> str:
         if entry.key not in V1_DESCRIPTIONS:
             raise TagError(f"ID3v1 has no field {entry.key!r}")
+        value = entry.get("value")
+        if entry.key in ("track", "genre"):
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                raise TagError(f"ID3v1 {entry.key} must be a number") from None
+            if not 0 <= number <= 255:
+                raise TagError(f"ID3v1 {entry.key} must be between 0 and 255")
+        else:
+            size = dict(V1_LAYOUT)[entry.key]
+            length = len(str(value).encode("latin-1", "replace"))
+            if length > size:
+                raise TagError(
+                    f"ID3v1 {entry.key} is limited to {size} bytes (this value has {length}). "
+                    f"ID3v1 is the old fixed-size tag; put long values in the ID3v2 frame "
+                    f"instead, or shorten it here.")
+        return entry.key
+
+    def set(self, entry: TagEntry) -> None:
+        self.validate(entry)
         if self.values is None:
             self.values = self._blank()
         value = entry.get("value")
-        if entry.key in ("track", "genre"):
-            value = int(value)
-        else:
-            size = dict(V1_LAYOUT)[entry.key]
-            if len(str(value).encode("latin-1", "replace")) > size:
-                raise TagError(f"ID3v1 {entry.key} is limited to {size} bytes")
-        self.values[entry.key] = value
+        self.values[entry.key] = int(value) if entry.key in ("track", "genre") else value
 
     def save(self) -> None:
         """Rewrite the trailing 128 bytes. Must run after every other writer."""

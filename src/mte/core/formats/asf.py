@@ -106,6 +106,12 @@ class ASFAdapter(Adapter):
             raise TagError("Attribute name can't be empty")
         return key
 
+    @classmethod
+    def validate(cls, entry: TagEntry) -> str:
+        key = cls.key_of(entry)
+        values_for(entry)  # raises TagError on bad numbers etc.
+        return key
+
     def delete(self, key: str, missing_ok: bool = False) -> None:
         tags = self.audio.tags
         if tags is None or key not in tags:

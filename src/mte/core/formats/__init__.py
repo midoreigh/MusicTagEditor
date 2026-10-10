@@ -21,4 +21,9 @@ def key_for(entry: TagEntry) -> str:
     return ADAPTERS[entry.system].key_of(entry)
 
 
-__all__ = ["ADAPTERS", "Adapter", "TagError", "key_for"]
+def validate_entry(entry: TagEntry) -> str:
+    """Raise TagError if ``entry`` can't be written; returns its key."""
+    return ADAPTERS[entry.system].validate(entry)
+
+
+__all__ = ["ADAPTERS", "Adapter", "TagError", "key_for", "validate_entry"]

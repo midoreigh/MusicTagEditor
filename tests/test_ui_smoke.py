@@ -301,3 +301,55 @@ def test_rename_folder_keeps_pending_edits(qtbot, tmp_path, monkeypatch):
     qtbot.waitUntil(lambda: not w.session.dirty_files(), timeout=5000)
     from mutagen.id3 import ID3
     assert ID3(new_path)["TIT2"].text == ["Pending title"]
+
+
+def test_too_long_id3v1_value_is_rejected_and_deleting_it_saves(qtbot, tmp_path, monkeypatch):
+    """Regression: a 31+ byte ID3v1 album used to be accepted, then failed on
+    every Save, even after the row was deleted (the edit log was replayed)."""
+    import mte.ui.main_window as mw
+    from mte.core.formats.id3 import build_id3v1, parse_id3v1
+    from mte.ui.editors.entry_dialog import EntryDialog
+
+    p = make_mp3(tmp_path / "v1.mp3")
+    seed_podcast_mp3(p)
+    with open(p, "ab") as f:
+        f.write(build_id3v1({"title": "T", "artist": "A", "album": "Short", "year": "2013",
+                             "comment": "", "track": 1, "genre": 255}))
+    w = MainWindow()
+    w.confirm_on_close = False
+    w.naming = NamingOptions()
+    qtbot.addWidget(w)
+    w.show()
+    w.load_paths([str(p)])
+    qtbot.waitUntil(lambda: len(w.file_model.paths) == 1 and w._loader is None, timeout=5000)
+    _select_files(w, {"v1.mp3"})
+    long_album = "Neelakasham Pachakadal Chuvanna Bhoomi"  # 38 bytes
+
+    # the editor dialog flags it while typing and refuses OK
+    warnings = []
+    monkeypatch.setattr(mw.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)))
+    monkeypatch.setattr(mw.QMessageBox, "information", staticmethod(lambda *a: warnings.append(a)))
+    import mte.ui.editors.entry_dialog as ed
+    monkeypatch.setattr(ed.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)))
+    dlg = EntryDialog(_row(w, "ID3v1", "album").first)
+    qtbot.addWidget(dlg)
+    dlg.widgets["value"].set_value(long_album)
+    dlg._update_key()
+    assert "30 bytes" in dlg.key_label.text()
+    dlg._accept()
+    assert dlg.result() != dlg.DialogCode.Accepted and warnings
+
+    # an inline edit is refused too, and the file stays clean
+    w._inline_edit(_row(w, "ID3v1", "album"), long_album)
+    qtbot.wait(10)
+    st = w.session.files[str(p)]
+    assert not st.dirty and st.find("ID3v1", "album").get("value") == "Short"
+
+    # a valid edit followed by deleting the row saves cleanly
+    w._inline_edit(_row(w, "ID3v1", "album"), "Neelakasham")
+    qtbot.wait(10)
+    w.session.delete([str(p)], "ID3v1", "album")
+    w._after_edit()
+    w.save()
+    qtbot.waitUntil(lambda: not w.session.dirty_files(), timeout=5000)
+    assert parse_id3v1(p.read_bytes()[-128:])["album"] == ""
