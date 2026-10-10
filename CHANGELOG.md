@@ -6,6 +6,15 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-10
+
+### Fixed
+- The Linux `.deb` now installs with plain `sudo dpkg -i`. It used to list libraries
+  that are already bundled inside it (such as `libxcb-cursor0`) as dependencies, so
+  `dpkg -i` failed on systems without them. It now declares only the system
+  libraries it really needs, which every desktop Ubuntu/Debian already has.
+- Every release build now installs the `.deb` on a clean Ubuntu 22.04 to check this.
+
 ## [0.1.0] - 2026-10-10
 
 First public release.
@@ -39,5 +48,6 @@ First public release.
 - Complex ID3 frames (chapters, synced lyrics, RVA2, …) are read-only, but they are
   kept and can be deleted.
 
-[Unreleased]: https://github.com/midoreigh/MusicTagEditor/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/midoreigh/MusicTagEditor/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/midoreigh/MusicTagEditor/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/midoreigh/MusicTagEditor/releases/tag/v0.1.0

@@ -46,13 +46,19 @@ cp -a "$DIST/MusicTagEditor" "$PKG/opt/mte"
 ln -s /opt/mte/mte "$PKG/usr/bin/mte"
 cp "$HERE/mte.desktop" "$PKG/usr/share/applications/"
 cp "$APPDIR/mte.png" "$PKG/usr/share/icons/hicolor/512x512/apps/mte.png"
+# Only libraries PyInstaller does *not* bundle belong here (all present on any
+# desktop install): GL/EGL, the base X11 (xcb) and Wayland client libraries,
+# and libdrm. Qt's xcb-cursor/xkbcommon/fontconfig/dbus libraries ship inside
+# the package; listing them made `dpkg -i` fail where they weren't installed.
+# The Release workflow installs exactly these into a clean Ubuntu container
+# and checks every bundled library resolves.
 cat > "$PKG/DEBIAN/control" <<CTRL
 Package: mte
 Version: ${VERSION}
 Section: sound
 Priority: optional
 Architecture: ${DEB_ARCH}
-Depends: libxcb-cursor0, libxkbcommon-x11-0, libegl1, libfontconfig1, libdbus-1-3
+Depends: libegl1, libgl1, libxcb1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libdrm2
 Maintainer: Mido Reigh <midoreigh@gmail.com>
 Description: View and edit every raw tag in audio files
  Shows all ID3v2/ID3v1 frames, MP4 atoms, Vorbis comments, FLAC pictures,
