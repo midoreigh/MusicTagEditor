@@ -82,7 +82,7 @@ jobs:
         run: |
           deb=$(basename dist/mte_*.deb)
           docker run --rm -v "$PWD/dist:/dist:ro" -e QT_QPA_PLATFORM=offscreen \
-            -e DEB="$deb" ubuntu:22.04 bash -euc '
+            -e DEB="$deb" ubuntu:22.04 bash -euo pipefail -c '
             apt-get update -qq
             # install exactly what the package declares, nothing else
             deps=$(dpkg-deb -f "/dist/$DEB" Depends | tr -d ",")
@@ -96,7 +96,10 @@ jobs:
                       | grep "not found" | sort -u || true)
             [ -z "$missing" ] || { echo "::error::Libraries not bundled or declared:"; echo "$missing"; exit 1; }
             unset LD_LIBRARY_PATH
-            mte --smoke-test
+            mte --smoke-test 2>&1 | tee /tmp/smoke.log
+            if grep -qi "fontconfig error" /tmp/smoke.log; then
+              echo "::error::fontconfig can't find its configuration"; exit 1
+            fi
             echo "OK: dpkg -i works with the declared dependencies"
           '
 
