@@ -98,7 +98,7 @@ jobs:
             unset LD_LIBRARY_PATH
             mte --smoke-test 2>&1 | tee /tmp/smoke.log
             if grep -qi "fontconfig error" /tmp/smoke.log; then
-              echo "::error::fontconfig can't find its configuration"; exit 1
+              echo "::error::fontconfig cannot find its configuration"; exit 1
             fi
             echo "OK: dpkg -i works with the declared dependencies"
           '
