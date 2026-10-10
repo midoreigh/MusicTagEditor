@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QAbstractItemView, QApplication, QHeaderView, QTab
 
 from ..core.model import KEY_FIELDS, META_FIELDS, FieldType, TagEntry, details
 from ..core.session import MergedRow, Session
+from .editors.fields import mono_font
 
 COLUMNS = ["System", "Key", "Description", "Value", "Details"]
 COL_SYSTEM, COL_KEY, COL_DESC, COL_VALUE, COL_DETAILS = range(5)
@@ -117,14 +118,13 @@ class TagTableModel(QAbstractTableModel):
             return self.value_text(row) if row.uniform else ""
         if role == Qt.ItemDataRole.FontRole:
             state = self.row_state(row)
-            font = QFont()
+            # system fixed font: a literal "monospace" family doesn't exist on
+            # macOS and makes Qt scan every installed font for a substitute
+            font = QFont(mono_font()) if col == COL_KEY else QFont()
             if state:
                 font.setBold(True)
             if e.readonly:
                 font.setItalic(True)
-            if col == COL_KEY:
-                font.setFamily("monospace")
-                font.setStyleHint(QFont.StyleHint.Monospace)
             return font
         if role == Qt.ItemDataRole.BackgroundRole:
             state = self.row_state(row)
