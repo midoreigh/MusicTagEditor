@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest an idea or an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem or workflow, rather than the solution.
+      placeholder: When I tidy up a downloaded album I have to…
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could Music Tag Editor help?
+      description: Your idea for a solution, if you have one. Mention it if another app (e.g. Picard) does this well.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?

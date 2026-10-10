@@ -1,0 +1,57 @@
+name: Bug report
+description: Something doesn't work, or a tag is shown or saved wrongly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        1. Opened a folder with MP3s
+        2. Edited the TXXX:podcastdesc tag and saved
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: dump
+    attributes:
+      label: Tag dump of an affected file
+      description: |
+        Output of `mte-cli dump <file>` (or `uv run mte-cli dump <file>` from source).
+        Remove anything private first.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Music Tag Editor version
+      description: Help › About shows it
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+        - Ubuntu / Debian
+        - Other Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Installer from GitHub Releases (DMG / setup.exe / .deb)
+        - AppImage
+        - Portable zip
+        - From source (uv run mte)
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, file format details, error messages…

@@ -1,5 +1,9 @@
 # Music Tag Editor (mte)
 
+[![CI](https://github.com/midoreigh/MusicTagEditor/actions/workflows/ci.yml/badge.svg)](https://github.com/midoreigh/MusicTagEditor/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/midoreigh/MusicTagEditor)](https://github.com/midoreigh/MusicTagEditor/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A cross-platform (macOS, Linux, Windows) desktop editor that shows and edits **every raw tag**
 stored in audio files. Unlike Picard, nothing is mapped or hidden: podcast frames, `PRIV`,
 `TXXX`, iTunes freeform atoms, and frames mutagen can't even parse all show up.
@@ -22,6 +26,23 @@ stored in audio files. Unlike Picard, nothing is mapped or hidden: podcast frame
 - Nothing touches disk until **Save** (Ctrl+S). Modified rows and files are highlighted, and Revert discards changes. Failed files keep their pending edits.
 - Picture and binary data: preview, hex dump, import and export.
 
+## Download
+Get the installer for your system from the
+[latest release](https://github.com/midoreigh/MusicTagEditor/releases/latest):
+
+| System | File |
+|---|---|
+| macOS (Apple Silicon) | `MusicTagEditor-x.y.z-macos-arm64.dmg` |
+| macOS (Intel) | `MusicTagEditor-x.y.z-macos-x86_64.dmg` |
+| Windows | `MusicTagEditor-x.y.z-windows-x64-setup.exe`, or the portable `.zip` |
+| Ubuntu / Debian | `mte_x.y.z_amd64.deb` (`sudo apt install ./mte_*.deb`, then run `mte`) |
+| Other Linux | `MusicTagEditor-x.y.z-linux-x86_64.AppImage` (`chmod +x` it, then run it) |
+
+The installers aren't code-signed yet:
+- **macOS:** the first time, right-click the app and choose **Open**. Or run
+  `xattr -dr com.apple.quarantine "/Applications/Music Tag Editor.app"`.
+- **Windows:** if SmartScreen warns, click **More info → Run anyway**.
+
 ## Run from source
 Requires [uv](https://docs.astral.sh/uv/).
 ```bash
@@ -33,29 +54,30 @@ uv run pytest
 ```
 Ubuntu needs Qt's xcb libraries: `sudo apt install libxcb-cursor0 libxkbcommon-x11-0 libegl1`.
 
-## Installers
-`.github/workflows/build.yml` tests on all three OSes and builds:
-- **macOS**: `MusicTagEditor-x.y.z-macos-{arm64,x86_64}.dmg`. It's ad-hoc signed, not notarized, so the first launch needs right-click → Open, or `xattr -dr com.apple.quarantine "/Applications/Music Tag Editor.app"`.
-- **Windows**: an Inno Setup installer plus a portable zip.
-- **Linux**: an AppImage and a `.deb` (installs to `/opt/mte`, launched with `mte`), built on Ubuntu 22.04.
-
-Push a `v*` tag to publish them as a GitHub release. To build locally:
+To build an installer locally:
 ```bash
 uv run pyinstaller packaging/mte.spec --noconfirm
 packaging/macos/build_dmg.sh 0.1.0       # macOS
 packaging/linux/build_linux.sh 0.1.0     # Linux (PYTHON="uv run python")
 ```
+Official installers are built by the **Release** workflow when a version tag is pushed.
+See [CONTRIBUTING.md](CONTRIBUTING.md#releasing-maintainers).
+
+## Contributing
+Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for setup, the branch and PR workflow, and how releases work. Changes are listed in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Layout
 ```
 src/mte/core/      Qt-free model, format adapters (formats/), session, batch save, cleaner
-src/mte/ui/        PySide6 main window, tag table, file list, editors, dialogs
+src/mte/ui/        PySide6 main window, folder tree, tag table, editors, dialogs
 src/mte/cli.py     dump / clean command line
 packaging/         PyInstaller spec, Inno Setup, AppImage/.deb, DMG scripts, icon
 tests/             round-trip tests per format + headless GUI smoke tests
 ```
 
-## Known limitations (v1)
+## Known limitations
 - ID3v2.2 files are converted to v2.4 when saved, because v2.2 can't be written.
 - Complex ID3 structures (CHAP/CTOC sub-frames, SYLT, RVA2, ETCO…) are shown read-only, but they are preserved and can be deleted.
 - Raw ADTS `.aac` and Matroska/WebM aren't supported. WMA isn't covered by automated tests yet (there's no fixture).
