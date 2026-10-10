@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=RawTag
+Name=Music Tag Editor
 GenericName=Audio Tag Editor
 Comment=View and edit every raw tag in audio files
-Exec=rawtag %F
-Icon=rawtag
+Exec=mte %F
+Icon=mte
 Terminal=false
 Categories=AudioVideo;Audio;
 MimeType=audio/mpeg;audio/mp4;audio/x-m4a;audio/flac;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/x-wav;audio/x-aiff;audio/x-ms-wma;audio/x-ape;audio/x-wavpack;

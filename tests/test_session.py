@@ -1,9 +1,9 @@
 from mutagen.id3 import ID3
 
-from rawtag.core.batch import save_all
-from rawtag.core.formats.id3 import blank_frame_entry
-from rawtag.core.session import Session
-from rawtag.core.tagfile import load
+from mte.core.batch import save_all
+from mte.core.formats.id3 import blank_frame_entry
+from mte.core.session import Session
+from mte.core.tagfile import load
 
 from conftest import make_mp3, make_flac
 from test_formats import seed_podcast_mp3

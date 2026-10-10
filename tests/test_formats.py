@@ -1,4 +1,4 @@
-"""Round-trip tests: edit through rawtag, reopen with plain mutagen, check raw state."""
+"""Round-trip tests: edit through mte, reopen with plain mutagen, check raw state."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from mutagen.flac import FLAC, Picture as FlacPicture
 from mutagen.id3 import APIC, COMM, ID3, PCST, PRIV, TIT2, TXXX, TYER, WFED
 from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 
-from rawtag.core.cleaner import removal_ops
-from rawtag.core.formats.id3 import blank_frame_entry, build_id3v1, parse_id3v1
-from rawtag.core.model import DeleteEntry, FieldType, SetEntry
-from rawtag.core.tagfile import TagFile, apply_and_save, load
+from mte.core.cleaner import removal_ops
+from mte.core.formats.id3 import blank_frame_entry, build_id3v1, parse_id3v1
+from mte.core.model import DeleteEntry, FieldType, SetEntry
+from mte.core.tagfile import TagFile, apply_and_save, load
 
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
 

@@ -1,7 +1,7 @@
 """Command line companion: dump raw tags, or clean them like the original script.
 
-    rawtag-cli dump FILE_OR_FOLDER...
-    rawtag-cli clean FOLDER TERM [--dry-run] [--keys-only]
+    mte-cli dump FILE_OR_FOLDER...
+    mte-cli clean FOLDER TERM [--dry-run] [--keys-only]
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def cmd_clean(args) -> int:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="rawtag-cli", description=__doc__,
+    parser = argparse.ArgumentParser(prog="mte-cli", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("dump", help="print every raw tag")

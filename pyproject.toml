@@ -1,5 +1,5 @@
 [project]
-name = "rawtag"
+name = "mte"
 version = "0.1.0"
 description = "Cross-platform editor for every raw tag in audio files"
 readme = "README.md"
@@ -10,8 +10,8 @@ dependencies = [
 ]
 
 [project.scripts]
-rawtag = "rawtag.app:main"
-rawtag-cli = "rawtag.cli:main"
+mte = "mte.app:main"
+mte-cli = "mte.cli:main"
 
 [dependency-groups]
 dev = [
@@ -26,7 +26,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/rawtag"]
+packages = ["src/mte"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

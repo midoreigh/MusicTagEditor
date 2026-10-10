@@ -1,7 +1,7 @@
 """In-memory editing session: loaded files, pending edits, merged views.
 
 Nothing touches disk until :func:`Session.save_plan` is executed through
-:func:`rawtag.core.batch.save_all`. Each file keeps its original tags, a working
+:func:`mte.core.batch.save_all`. Each file keeps its original tags, a working
 copy that reflects pending edits, and the op log that will be replayed on a
 freshly opened file at save time.
 """

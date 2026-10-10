@@ -46,7 +46,7 @@ def make_flac(path: Path) -> Path:
 
 def make_opus(path: Path) -> Path:
     head = b"OpusHead" + struct.pack("<BBHIhB", 1, 2, 312, 48000, 0, 0)
-    tags_pkt = b"OpusTags" + struct.pack("<I", 6) + b"rawtag" + struct.pack("<I", 0)
+    tags_pkt = b"OpusTags" + struct.pack("<I", 3) + b"mte" + struct.pack("<I", 0)
     pages = []
     for seq, (pkt, pos, flags) in enumerate([(head, 0, 0x02), (tags_pkt, 0, 0),
                                              (b"\xf8\xff\xfe", 960, 0x04)]):

@@ -9,7 +9,7 @@ from mutagen.id3 import ID3
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from rawtag.ui.main_window import MainWindow  # noqa: E402
+from mte.ui.main_window import MainWindow  # noqa: E402
 
 from conftest import make_flac, make_mp3  # noqa: E402
 from test_formats import seed_podcast_mp3  # noqa: E402
@@ -78,8 +78,8 @@ def test_load_select_inline_edit_and_save(window, qtbot, tmp_path):
 
 
 def test_entry_dialog_builds_for_every_frame_type(window, qtbot):
-    from rawtag.core.tagfile import TagFile
-    from rawtag.ui.editors.entry_dialog import EntryDialog
+    from mte.core.tagfile import TagFile
+    from mte.ui.editors.entry_dialog import EntryDialog
 
     path = window.file_model.paths[0]
     for system in ("ID3v2", "ID3v1", "APEv2"):
@@ -93,13 +93,13 @@ def test_screenshot(window, qtbot, tmp_path):
     _select_files(window, {"a.mp3"})
     window.resize(1200, 700)
     qtbot.wait(50)
-    out = os.environ.get("RAWTAG_SCREENSHOT")
+    out = os.environ.get("MTE_SCREENSHOT")
     if out:
         window.grab().save(out)
 
 
 def test_add_tag_dialog_lists_templates(window, qtbot):
-    from rawtag.ui.add_tag import AddTagDialog
+    from mte.ui.add_tag import AddTagDialog
 
     path = window.file_model.paths[0]
     dlg = AddTagDialog({"ID3v2": path, "APEv2": path, "ID3v1": path})
@@ -113,7 +113,7 @@ def test_add_tag_dialog_lists_templates(window, qtbot):
 
 
 def test_find_remove_dialog_queues_deletes(window, qtbot):
-    from rawtag.ui.find_remove import FindRemoveDialog
+    from mte.ui.find_remove import FindRemoveDialog
 
     paths = list(window.file_model.paths)
     dlg = FindRemoveDialog(window.session, [], paths)

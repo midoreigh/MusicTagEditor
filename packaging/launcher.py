@@ -2,7 +2,7 @@
 
 import sys
 
-from rawtag.app import main
+from mte.app import main
 
 if __name__ == "__main__":
     sys.exit(main())

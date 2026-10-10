@@ -1,4 +1,4 @@
-# RawTag
+# Music Tag Editor (mte)
 
 A cross-platform (macOS, Linux, Windows) desktop editor that shows and edits **every raw tag**
 stored in audio files. Unlike Picard, nothing is mapped or hidden: podcast frames, `PRIV`,
@@ -26,33 +26,33 @@ stored in audio files. Unlike Picard, nothing is mapped or hidden: podcast frame
 Requires [uv](https://docs.astral.sh/uv/).
 ```bash
 uv sync
-uv run rawtag                 # GUI (optionally: uv run rawtag /path/to/music)
-uv run rawtag-cli dump FILE_OR_FOLDER
-uv run rawtag-cli clean FOLDER songs.pk --dry-run
+uv run mte                 # GUI (optionally: uv run mte /path/to/music)
+uv run mte-cli dump FILE_OR_FOLDER
+uv run mte-cli clean FOLDER songs.pk --dry-run
 uv run pytest
 ```
 Ubuntu needs Qt's xcb libraries: `sudo apt install libxcb-cursor0 libxkbcommon-x11-0 libegl1`.
 
 ## Installers
 `.github/workflows/build.yml` tests on all three OSes and builds:
-- **macOS**: `RawTag-x.y.z-macos-{arm64,x86_64}.dmg`. It's ad-hoc signed, not notarized, so the first launch needs right-click → Open, or `xattr -dr com.apple.quarantine /Applications/RawTag.app`.
+- **macOS**: `MusicTagEditor-x.y.z-macos-{arm64,x86_64}.dmg`. It's ad-hoc signed, not notarized, so the first launch needs right-click → Open, or `xattr -dr com.apple.quarantine "/Applications/Music Tag Editor.app"`.
 - **Windows**: an Inno Setup installer plus a portable zip.
-- **Linux**: an AppImage and a `.deb` (installs to `/opt/rawtag`, launched with `rawtag`), built on Ubuntu 22.04.
+- **Linux**: an AppImage and a `.deb` (installs to `/opt/mte`, launched with `mte`), built on Ubuntu 22.04.
 
 Push a `v*` tag to publish them as a GitHub release. To build locally:
 ```bash
-uv run pyinstaller packaging/rawtag.spec --noconfirm
+uv run pyinstaller packaging/mte.spec --noconfirm
 packaging/macos/build_dmg.sh 0.1.0       # macOS
 packaging/linux/build_linux.sh 0.1.0     # Linux (PYTHON="uv run python")
 ```
 
 ## Layout
 ```
-src/rawtag/core/      Qt-free model, format adapters (formats/), session, batch save, cleaner
-src/rawtag/ui/        PySide6 main window, tag table, file list, editors, dialogs
-src/rawtag/cli.py     dump / clean command line
-packaging/            PyInstaller spec, Inno Setup, AppImage/.deb, DMG scripts, icon
-tests/                round-trip tests per format + headless GUI smoke tests
+src/mte/core/      Qt-free model, format adapters (formats/), session, batch save, cleaner
+src/mte/ui/        PySide6 main window, tag table, file list, editors, dialogs
+src/mte/cli.py     dump / clean command line
+packaging/         PyInstaller spec, Inno Setup, AppImage/.deb, DMG scripts, icon
+tests/             round-trip tests per format + headless GUI smoke tests
 ```
 
 ## Known limitations (v1)

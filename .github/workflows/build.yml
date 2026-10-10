@@ -52,10 +52,10 @@ jobs:
       - name: Version
         id: version
         shell: bash
-        run: echo "version=$(uv run python -c 'import rawtag; print(rawtag.__version__)')" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(uv run python -c 'import mte; print(mte.__version__)')" >> "$GITHUB_OUTPUT"
 
       - name: PyInstaller
-        run: uv run pyinstaller packaging/rawtag.spec --noconfirm
+        run: uv run pyinstaller packaging/mte.spec --noconfirm
 
       # ---------------- Linux: AppImage + .deb
       - if: runner.os == 'Linux'
@@ -63,7 +63,7 @@ jobs:
         env:
           PYTHON: uv run python
         run: |
-          dist/RawTag/rawtag --smoke-test
+          dist/MusicTagEditor/mte --smoke-test
           packaging/linux/build_linux.sh "${{ steps.version.outputs.version }}"
 
       # ---------------- Windows: Inno Setup installer
@@ -71,24 +71,24 @@ jobs:
         name: Smoke test + installer
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath dist\RawTag\RawTag.exe -ArgumentList '--smoke-test' -Wait -PassThru
+          $p = Start-Process -FilePath dist\MusicTagEditor\MusicTagEditor.exe -ArgumentList '--smoke-test' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "smoke test failed: $($p.ExitCode)" }
           New-Item -ItemType Directory -Force build | Out-Null
           uv run python -c "from PIL import Image; Image.open('packaging/icon.png').save('build/icon.ico', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
           choco install innosetup -y --no-progress
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.version }}" packaging\windows\installer.iss
-          Compress-Archive -Path dist\RawTag -DestinationPath "dist\RawTag-${{ steps.version.outputs.version }}-windows-x64-portable.zip"
+          Compress-Archive -Path dist\MusicTagEditor -DestinationPath "dist\MusicTagEditor-${{ steps.version.outputs.version }}-windows-x64-portable.zip"
 
       # ---------------- macOS: .app in a DMG
       - if: runner.os == 'macOS'
         name: Smoke test + DMG
         run: |
-          dist/RawTag.app/Contents/MacOS/RawTag --smoke-test
+          "dist/Music Tag Editor.app/Contents/MacOS/MusicTagEditor" --smoke-test
           packaging/macos/build_dmg.sh "${{ steps.version.outputs.version }}"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rawtag-${{ matrix.os }}
+          name: mte-${{ matrix.os }}
           path: |
             dist/*.AppImage
             dist/*.deb

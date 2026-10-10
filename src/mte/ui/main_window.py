@@ -49,12 +49,12 @@ def parse_inline(ftype: FieldType, text: str):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("RawTag")
+        self.setWindowTitle("Music Tag Editor")
         self.resize(1280, 780)
         self.setAcceptDrops(True)
         self.session = Session()
         self.pool = QThreadPool.globalInstance()
-        self.settings = QSettings("RawTag", "RawTag")
+        self.settings = QSettings("Music Tag Editor", "Music Tag Editor")
         self._loader: LoadWorker | None = None
         self.confirm_on_close = True  # tests turn this off
 
@@ -161,7 +161,7 @@ class MainWindow(QMainWindow):
                           sp.SP_FileDialogContentsView,
                           "Remove tags whose key/value contains some text")
         self.a_select_all = act("Select All Files", self.file_view.selectAll, "Ctrl+Shift+A")
-        self.a_about = act("About RawTag", self.about)
+        self.a_about = act("About Music Tag Editor", self.about)
 
         m = self.menuBar().addMenu("&File")
         for a in (self.a_open, self.a_add_files, None, self.a_save, self.a_revert, self.a_reload,
@@ -289,7 +289,7 @@ class MainWindow(QMainWindow):
         self.a_save.setEnabled(dirty > 0)
         self.a_find.setEnabled(bool(self.file_model.paths))
         self.setWindowModified(dirty > 0)
-        self.setWindowTitle(f"RawTag{' — ' + str(dirty) + ' unsaved file(s)' if dirty else ''}")
+        self.setWindowTitle(f"Music Tag Editor{' — ' + str(dirty) + ' unsaved file(s)' if dirty else ''}")
 
     def _after_edit(self, paths=None) -> None:
         sel = self.tag_view.selected_rows()
@@ -527,8 +527,8 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ misc
     def about(self) -> None:
-        QMessageBox.about(self, "About RawTag",
-                          f"<b>RawTag {__version__}</b><p>View and edit every raw tag in audio "
+        QMessageBox.about(self, "About Music Tag Editor",
+                          f"<b>Music Tag Editor {__version__}</b><p>View and edit every raw tag in audio "
                           "files: ID3v2/ID3v1, MP4 atoms, Vorbis comments, FLAC pictures, "
                           "APEv2 and ASF.</p><p>Built with PySide6 and mutagen.</p>")
 

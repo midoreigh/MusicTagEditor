@@ -12,7 +12,7 @@ class TagError(Exception):
 class Adapter:
     """Reads/writes one tag system of one opened file.
 
-    Adapters are bound to an already opened file (see :mod:`rawtag.core.tagfile`).
+    Adapters are bound to an already opened file (see :mod:`mte.core.tagfile`).
     ``apply`` mutates the in-memory tags only; ``save`` writes them to disk.
     """
 
